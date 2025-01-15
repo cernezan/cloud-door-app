@@ -23,6 +23,12 @@ struct ContentView: View {
         // When starting the application, load locations from cache, to avoid waiting for the initial response from the API.
         let cachedLocations = cache.getCachedLocations() ?? []
         self.locations = getLocationsWithDistance(locations: cachedLocations, distanceToLocation: nil)
+        
+        if configuration.get().hostname.isEmpty {
+            alertTitle = "Error"
+            alertMessage = "Please set the hostname in the configuration."
+            showAlert = true
+        }
     }
     
     func refresh() {
@@ -77,7 +83,7 @@ struct ContentView: View {
                         if let distance = index.distance {
                             alertMessage = "Door '\(index.location.name)' too far away (\(distance)m > \(index.location.geolocations[0].radius)m)"
                         } else {
-                            alertMessage = "Cannot open door, since location of the device is not known"
+                            alertMessage = "Cannot open door, since location of the device is not known. Please check device settings, to ensure application has location permissions."
                         }
                         showAlert = true
                     }

@@ -87,14 +87,9 @@ struct SettingsView: View {
                     }
                 }
 
-                Section(header: Text("Debug")) {
+                Section {
                     Button("Reset to production host") {
                         self.hostname = self.productionHost
-                    }
-                    Button("Reset values to test configuration") {
-                        alertTitle = "Warning"
-                        alertMessage = "You are about to replace existing account info with test account info."
-                        showAlertWithCancel = true
                     }
                 }
             }
