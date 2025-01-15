@@ -87,9 +87,11 @@ struct SettingsView: View {
                     }
                 }
 
-                Section {
-                    Button("Reset to production host") {
-                        self.hostname = self.productionHost
+                if self.hostname != self.productionHost {
+                    Section {
+                        Button("Reset to default hostname") {
+                            self.hostname = self.productionHost
+                        }
                     }
                 }
             }
