@@ -75,9 +75,13 @@ struct SettingsView: View {
                             alertTitle = "Success"
                             alertMessage = "Configuration saved."
                             showAlert = true
+                        } catch ApiError.runtimeError(let err) {
+                            alertTitle = "Error"
+                            alertMessage = "\(err)"
+                            showAlert = true
                         } catch {
                             alertTitle = "Error"
-                            alertMessage = "\(error)"
+                            alertMessage = "Unknown error: \(error)"
                             showAlert = true
                         }
                     }

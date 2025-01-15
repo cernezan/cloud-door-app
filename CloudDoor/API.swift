@@ -10,6 +10,11 @@ struct TokenResponse: Decodable {
     var access_token: String
 }
 
+struct TokenErrorResponse: Decodable {
+    var error: String
+    var error_description: String
+}
+
 struct Geolocation: Encodable, Decodable {
     var id: String
     var name: String
@@ -95,6 +100,11 @@ class API {
         let (returnedData, response) = try await URLSession.shared.data(for: request)
         
         if let httpResponse = response as? HTTPURLResponse {
+            if httpResponse.statusCode == 400 {
+                let error = try JSONDecoder().decode(TokenErrorResponse.self, from: returnedData)
+                throw ApiError.runtimeError(error.error_description)
+            }
+
             if httpResponse.statusCode != 200 {
                 throw ApiError.runtimeError("Response failed with '\(httpResponse.statusCode)': \(returnedData)")
             }
