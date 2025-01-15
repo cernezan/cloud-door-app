@@ -75,22 +75,23 @@ struct SettingsView: View {
                             alertTitle = "Success"
                             alertMessage = "Configuration saved."
                             showAlert = true
+                        } catch ApiError.runtimeError(let err) {
+                            alertTitle = "Error"
+                            alertMessage = "\(err)"
+                            showAlert = true
                         } catch {
                             alertTitle = "Error"
-                            alertMessage = "\(error)"
+                            alertMessage = "Unknown error: \(error)"
                             showAlert = true
                         }
                     }
                 }
 
-                Section(header: Text("Debug")) {
-                    Button("Reset to production host") {
-                        self.hostname = self.productionHost
-                    }
-                    Button("Reset values to test configuration") {
-                        alertTitle = "Warning"
-                        alertMessage = "You are about to replace existing account info with test account info."
-                        showAlertWithCancel = true
+                if self.hostname != self.productionHost {
+                    Section {
+                        Button("Reset to default hostname") {
+                            self.hostname = self.productionHost
+                        }
                     }
                 }
             }

@@ -43,19 +43,24 @@ struct ContentView: View {
     }
 
     var body: some View {
-        VStack {
-            List(locations) { index in
-                HStack {
-                    Text("\(index.location.name) \(optionalDistanceToString(distance: index.distance))")
-                    Spacer()
-                }
-                .contentShape(Rectangle())
-                .onReceive(locationManager.$location) { value in
-                    let rawLocations = self.locations.map { $0.location }
-                    self.locations = getLocationsWithDistance(locations: rawLocations, distanceToLocation: value)
-                }
-                .onTapGesture {
-                    if index.inRadius {
+        ZStack {
+            VStack {
+                Label("Please configure credentials in Settings.", systemImage: "info.circle")
+            }
+            .opacity(configuration.get().hostname.isEmpty ? 1 : 0)
+            VStack {
+                List(locations) { index in
+                    HStack {
+                        Text("\(index.location.name) \(optionalDistanceToString(distance: index.distance))")
+                        Spacer()
+                    }
+                    .contentShape(Rectangle())
+                    .onReceive(locationManager.$location) { value in
+                        let rawLocations = self.locations.map { $0.location }
+                        self.locations = getLocationsWithDistance(locations: rawLocations, distanceToLocation: value)
+                    }
+                    .onTapGesture {
+                        if index.inRadius {
                             Task {
                                 do {
                                     let api = API.initFromConfiguration(configuration: Configuration())
@@ -71,33 +76,35 @@ struct ContentView: View {
                                     showAlert = true
                                 }
                             }
-                    } else {
-                        alertTitle = "Error"
-                        
-                        if let distance = index.distance {
-                            alertMessage = "Door '\(index.location.name)' too far away (\(distance)m > \(index.location.geolocations[0].radius)m)"
                         } else {
-                            alertMessage = "Cannot open door, since location of the device is not known"
+                            alertTitle = "Error"
+                            
+                            if let distance = index.distance {
+                                alertMessage = "Door '\(index.location.name)' too far away (\(distance)m > \(index.location.geolocations[0].radius)m)"
+                            } else {
+                                alertMessage = "Cannot open door, since location of the device is not known. Please check device settings, to ensure application has location permissions."
+                            }
+                            showAlert = true
                         }
-                        showAlert = true
                     }
                 }
+                if let placemark = locationManager.placemark {
+                    Text("Location: \(placemark.subThoroughfare ?? "") \(placemark.thoroughfare ?? ""), \(placemark.locality ?? "")")
+                } else {
+                    Text("Location: unknown")
+                }
             }
-            if let placemark = locationManager.placemark {
-                Text("Location: \(placemark.subThoroughfare ?? "") \(placemark.thoroughfare ?? ""), \(placemark.locality ?? "")")
-            } else {
-                Text("Location: unknown")
+            .padding()
+            .onAppear {
+                if configuration.get().username != "" {
+                    refresh()
+                }
             }
+            .alert(isPresented: $showAlert, content: {
+                Alert(title: Text(self.alertTitle), message: Text(self.alertMessage), dismissButton: .default(Text("OK")))
+            })
+            .opacity(configuration.get().hostname.isEmpty ? 0 : 1)
         }
-        .padding()
-        .onAppear {
-            if configuration.get().username != "" {
-                refresh()
-            }
-        }
-        .alert(isPresented: $showAlert, content: {
-            Alert(title: Text(self.alertTitle), message: Text(self.alertMessage), dismissButton: .default(Text("OK")))
-        })
     }
 }
 
