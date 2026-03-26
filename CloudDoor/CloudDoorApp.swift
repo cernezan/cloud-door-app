@@ -1,25 +1,23 @@
-//
-//  CloudDoorApp.swift
-//  CloudDoor
-//
-//  Created by dean on 29. 9. 24.
-//
-
 import SwiftUI
 
 @main
 struct CloudDoorApp: App {
+    enum AppTab: String {
+        case doors
+        case settings
+    }
+
+    @State private var selectedTab: AppTab = .doors
+
     var body: some Scene {
         WindowGroup {
-            TabView {
-                ContentView()
-                    .tabItem {
-                        Label("Doors", systemImage: "door.french.closed")
-                    }
-                SettingsView()
-                    .tabItem {
-                        Label("Settings", systemImage: "gear")
-                    }
+            TabView(selection: $selectedTab) {
+                Tab("Doors", systemImage: "door.left.hand.closed", value: .doors) {
+                    ContentView()
+                }
+                Tab("Settings", systemImage: "gear", value: .settings) {
+                    SettingsView()
+                }
             }
         }
     }

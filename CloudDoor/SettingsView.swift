@@ -1,114 +1,120 @@
-//
-//  SettingsView.swift
-//  CloudDoor
-//
-//  Created by dean on 30. 9. 24.
-//
-
 import SwiftUI
 
 struct SettingsView: View {
-    @State var alertTitle = ""
-    @State var alertMessage = ""
-    @State var showAlert = false
-    @State var showAlertWithCancel = false
-
     @State private var username: String
     @State private var password: String
     @State private var hostname: String
-    
-    let testingHost = "https://cloud-door-mock.test.dejanlevec.com"
-    let productionHost = "https://api.doorcloud.com"
-    let configuration = Configuration()
-    
+    @State private var alertItem: AlertItem?
+    @State private var showAlert = false
+    @State private var isTesting = false
+    @State private var primaryDoorId: String?
+    @State private var cachedLocations: [Location] = []
+
+    private let productionHost = "https://api.doorcloud.com"
+    @State private var configuration = Configuration()
+    @State private var cache = Cache()
+    @State private var aliasStore = DoorAliasStore()
+
     init() {
-        let values = configuration.get()
+        let config = Configuration()
+        let values = config.get()
+        self._configuration = State(initialValue: config)
         self.username = values.username
         self.password = values.password
-        self.hostname = values.hostname == "" ? self.productionHost : values.hostname
-    }
-
-    func fillTestAccountInfo() {
-        self.username = "user@example.com"
-        self.password = "password"
-        self.hostname = testingHost
+        self.hostname = values.hostname.isEmpty ? "https://api.doorcloud.com" : values.hostname
     }
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             Form {
-                Section(header: Text("Account")) {
-                    LabeledContent {
-                        TextField("", text: $username, prompt: Text("required"))
-                            .keyboardType(UIKeyboardType.emailAddress)
-                            .autocapitalization(.none)
-                    } label: {
-                        Text("Email")
-                            .foregroundStyle(.secondary)
-                    }
+                Section {
+                    TextField("Email", text: $username, prompt: Text("name@example.com"))
+                        .keyboardType(.emailAddress)
+                        .textContentType(.emailAddress)
+                        .textInputAutocapitalization(.never)
 
-                    LabeledContent {
-                        SecureField("", text: $password, prompt: Text("required"))
-                    } label: {
-                        Text("Password")
-                            .foregroundStyle(.secondary)
-                    }
+                    SecureField("Password", text: $password, prompt: Text("Required"))
+                        .textContentType(.password)
 
-                    LabeledContent {
-                        TextField("", text: $hostname, prompt: Text("required"))
-                            .autocapitalization(.none)
-                    } label: {
-                        Text("Hostname")
-                            .foregroundStyle(.secondary)
+                    TextField("Server", text: $hostname, prompt: Text("https://api.doorcloud.com"))
+                        .textInputAutocapitalization(.never)
+                        .keyboardType(.URL)
+                        .textContentType(.URL)
+                } header: {
+                    Text("Account")
+                } footer: {
+                    if hostname != productionHost {
+                        Button("Reset to Default Server") {
+                            hostname = productionHost
+                        }
+                        .font(.footnote)
                     }
                 }
 
-                Button("Test & update") {
-                    Task {
-                        let api = API(url: self.hostname, username: username, password: password)
-                        
-                        do {
-                            let _ = try await api.getToken()
-                            
-                            configuration.set(username: username, password: password, hostname: hostname)
-                            
-                            alertTitle = "Success"
-                            alertMessage = "Configuration saved."
-                            showAlert = true
-                        } catch ApiError.runtimeError(let err) {
-                            alertTitle = "Error"
-                            alertMessage = "\(err)"
-                            showAlert = true
-                        } catch {
-                            alertTitle = "Error"
-                            alertMessage = "Unknown error: \(error)"
-                            showAlert = true
+                Section {
+                    Button {
+                        Task { await testAndSave() }
+                    } label: {
+                        HStack {
+                            Text("Test Connection & Save")
+                            Spacer()
+                            if isTesting {
+                                ProgressView()
+                            }
                         }
                     }
+                    .disabled(isTesting || username.isEmpty || password.isEmpty || hostname.isEmpty)
                 }
 
-                if self.hostname != self.productionHost {
+                if !cachedLocations.isEmpty {
                     Section {
-                        Button("Reset to default hostname") {
-                            self.hostname = self.productionHost
+                        Picker("Primary Door", selection: $primaryDoorId) {
+                            Text("None").tag(String?.none)
+                            ForEach(cachedLocations, id: \.id) { location in
+                                Text(location.name).tag(Optional(location.id))
+                            }
+                        }
+                    } header: {
+                        Text("Siri")
+                    } footer: {
+                        if primaryDoorId != nil {
+                            Text("\"Hey Siri, open door in CloudDoor\" opens your primary door. Swipe a door in the list to set a custom Siri name.")
+                        } else {
+                            Text("Choose a door to enable hands-free opening with Siri.")
                         }
                     }
                 }
             }
             .navigationTitle("Settings")
-            .alert(alertTitle, isPresented: $showAlertWithCancel, actions: {
-                Button("Cancel", role: .cancel) {}
-                Button("OK", role: .destructive) {
-                    fillTestAccountInfo()
-                }
-            }, message: {
-                Text(alertMessage)
-            })
-            .alert(alertTitle, isPresented: $showAlert, actions: {
-                Button("OK", role: .cancel) { }
-            }, message: {
-                Text(alertMessage)
-            })
+            .task {
+                cachedLocations = cache.getCachedLocations() ?? []
+                primaryDoorId = aliasStore.getPrimaryDoorId()
+            }
+            .onChange(of: primaryDoorId) {
+                aliasStore.setPrimaryDoorId(primaryDoorId)
+            }
+            .onChange(of: alertItem) {
+                showAlert = alertItem != nil
+            }
+            .alert(alertItem?.title ?? "", isPresented: $showAlert) { } message: {
+                Text(alertItem?.message ?? "")
+            }
+        }
+    }
+
+    private func testAndSave() async {
+        isTesting = true
+        defer { isTesting = false }
+
+        let api = API(url: hostname, username: username, password: password)
+        do {
+            _ = try await api.getToken()
+            configuration.set(username: username, password: password, hostname: hostname)
+            alertItem = AlertItem(title: "Saved", message: "Connected successfully.")
+        } catch ApiError.runtimeError(let message) {
+            alertItem = AlertItem(title: "Authentication Failed", message: message)
+        } catch {
+            alertItem = AlertItem(title: "Connection Failed", message: "Could not reach the server. Check the hostname and try again.")
         }
     }
 }
